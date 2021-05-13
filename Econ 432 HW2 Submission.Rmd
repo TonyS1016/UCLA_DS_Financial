@@ -1,0 +1,405 @@
+---
+title: "Econ 432 HW2 - Tianyu Sun Submission"
+output: html_document
+---
+
+#Part 1 R Questions 
+
+1. 
+```{r}
+#Done on paper, see attached picture file in submissions
+```
+
+
+2. 
+Suppose X is a normally distributed RV w/ mean 0 and var 1
+Compute the following using the R functions pnorm and qnorm 
+
+```{r cars}
+#a. Pr(X< -1.96)
+p1a = pnorm(-1.96, mean=0, sd=1)
+p1a
+
+#b. Pr(X > 1.64)
+p1b = pnorm(1.64, mean=0, sd=1)
+p1b_answer = 1 - p1b
+p1b_answer
+
+#c. Pr(-0.5 < X < 0.5)
+p1c = pnorm(-0.5, mean=0, sd=1)
+p1c_2 = pnorm(0.5,mean=0,sd=1)
+p1c_2
+p1c_answer = p1c_2 - p1c
+p1c_answer
+
+#d. 1% Quantile (q.01) and 99% Quantile (q.99)
+qnorm(.01, mean=0, sd=1)
+qnorm(.99,mean=0,sd=1)
+
+#e. 5% Quantile (q.05) and 95% Quantile (q.99)
+qnorm(.05,mean=0,sd=1)
+qnorm(.99,mean=0,sd=1)
+
+```
+
+3.
+Let X denote monthly return on Microsoft Stock and Y is the monthly return for SBUX
+Assume X follows N(.05,.1) amd Y follow N(.025,.05)
+
+```{r}
+#a. Using a grid of values b/n -.25 and .35, plot the normal curves for X and Y on the same plot 
+x = seq(-.25,.35,.01)
+f.x <- dnorm(x,mean=.05,sd=.1)
+f.y = dnorm(x,mean=.025,sd=.05)
+
+plot(f.y~x, type="l", col="red", ylab="f(x)", main="Density Curves for Microsoft and Starbucks")
+lines(f.x~x, type="l", col="blue")
+
+#b. 
+
+#It looks like SBUX is a lot more consistent and has less variance. 
+#Microsoft however has a higher average return, but more variance. 
+#I would just choose Microsoft as it has higher return and I am also biased as I have Microsoft stocks myself. 
+
+```
+
+
+4
+Let R denote the simple monthly return on Microsoft stock and let W_0 denote initial wealth to be invested over the month. Assume that R follows N(.05,.12) and that W_0 = 100,000
+
+```{r}
+#a. Determine the 1% and 5% VaR over the month of the investment 
+#1%
+library(scales)
+W0 <- 100000
+alpha <- 0.01
+mu.r = 0.05
+sigma.r = 0.12
+
+q_r <-  qnorm(alpha, mu.r, sigma.r)
+VaR_r <- W0 * q_r
+sprintf("The %s VaR is %.3f", percent(alpha), VaR_r)
+
+#5%
+W0 <- 100000
+alpha <- 0.05
+mu.r = 0.05
+sigma.r = 0.12
+
+q_r <-  qnorm(alpha, mu.r, sigma.r)
+VaR_r <- W0 * q_r
+sprintf("The %s VaR is %.3f", percent(alpha), VaR_r)
+```
+```{r}
+#b. Determine the 1% and 5% Expected Shortfall over the month on the investment
+#1%
+alpha = .01
+
+Integrand <- function(u, alpha_value, mu, sigma) {
+  W0*(qnorm(u, mu, sigma))/alpha_value
+}
+res <- integrate(Integrand, lower = 0, upper = alpha,
+                 alpha_value=alpha,
+                 mu = mu.r,
+                 sigma = sigma.r)
+res
+
+sprintf("The %s ES is %#.3f", percent(alpha), res[1])
+
+#5%
+alpha = .05
+
+Integrand <- function(u, alpha_value, mu, sigma) {
+  W0*(qnorm(u, mu, sigma))/alpha_value
+}
+res <- integrate(Integrand, lower = 0, upper = alpha,
+                 alpha_value=alpha,
+                 mu = mu.r,
+                 sigma = sigma.r)
+res
+
+sprintf("The %s ES is %#.3f", percent(alpha), res[1])
+```
+
+5.
+```{r}
+#a. Determine the 1% and 5% VaR over the month of the investment 
+#1%
+library(scales)
+W0 <- 100000
+alpha <- 0.01
+mu.r = 0.05
+sigma.r = 0.12
+
+q_r <-  qnorm(alpha, mu.r, sigma.r)
+VaR_r <- W0 * (exp(q_r)-1)
+sprintf("The %s VaR is %.3f", percent(alpha), VaR_r)
+
+#5%
+W0 <- 100000
+alpha <- 0.05
+mu.r = 0.05
+sigma.r = 0.12
+
+q_r <-  qnorm(alpha, mu.r, sigma.r)
+VaR_r <- W0 * (exp(q_r)-1)
+sprintf("The %s VaR is %.3f", percent(alpha), VaR_r)
+
+```
+```{r}
+#b. 
+#Determine the 1% and 5% Expected Shortfall over the month on the investment
+
+alpha = .01
+
+Integrand <- function(u, alpha_value, mu, sigma) {
+  W0*(exp(qnorm(u, mu, sigma))-1)/alpha_value
+}
+res <- integrate(Integrand, lower = 0, upper = alpha,
+                 alpha_value=alpha,
+                 mu = mu.r,
+                 sigma = sigma.r)
+res
+
+sprintf("The %s ES is %#.3f", percent(alpha), res[1])
+
+#5%
+alpha = .05
+
+Integrand <- function(u, alpha_value, mu, sigma) {
+  W0*(exp(qnorm(u, mu, sigma))-1)/alpha_value
+}
+res <- integrate(Integrand, lower = 0, upper = alpha,
+                 alpha_value=alpha,
+                 mu = mu.r,
+                 sigma = sigma.r)
+res
+
+sprintf("The %s ES is %#.3f", percent(alpha), res[1])
+```
+
+
+```{r}
+#c.
+#Determine the 1% and 5% VaR over the year on the investment 
+
+#1%
+mu = 12*mu.r
+abs.sd = sqrt(12*(sigma.r)^2)
+alpha = .01
+VaR.01 = W0*(exp(qnorm(alpha,mu,abs.sd))-1)
+sprintf("The %s VaR is %.3f", percent(alpha), VaR.01)
+
+#5%
+mu = 12*mu.r
+abs.sd = sqrt(12*(sigma.r)^2)
+alpha = .05
+VaR.05 = W0*(exp(qnorm(alpha,mu,abs.sd))-1)
+sprintf("The %s VaR is %.3f", percent(alpha), VaR.05)
+```
+
+```{r}
+#d.
+#Determine the 1% and 5% Expected Shortfall over the year 
+
+#1%
+alpha = .01
+
+Integrand <- function(u, alpha_value, mu, sigma) {
+  W0*(exp(qnorm(u, mu, sigma))-1)/alpha_value
+}
+res <- integrate(Integrand, lower = 0, upper = alpha,
+                 alpha_value=alpha,
+                 mu = mu,
+                 sigma = abs.sd)
+res
+
+sprintf("The %s ES is %#.3f", percent(alpha), res[1])
+
+
+#5%
+alpha = .05
+
+Integrand <- function(u, alpha_value, mu, sigma) {
+  W0*(exp(qnorm(u, mu, sigma))-1)/alpha_value
+}
+res <- integrate(Integrand, lower = 0, upper = alpha,
+                 alpha_value=alpha,
+                 mu = mu,
+                 sigma = abs.sd)
+res
+
+sprintf("The %s ES is %#.3f", percent(alpha), res[1])
+```
+
+
+
+6. 
+
+```{r}
+#a. On the same graph, plot the probability curves of chi-squared distributed 
+#random variables with 1, 2, 4 and 10 degrees of freedom.
+#Use different colors and line styles for each curve.
+
+x <- seq(-5,20,by=1)
+
+
+x.c1 <- dchisq(x,df=1)
+x.c2 <- dchisq(x,df=2)
+x.c4 <- dchisq(x,df=4)
+x.c10 <- dchisq(x,df=10)
+
+
+plot(x.c1~x, type="l", col="blue", 
+     lwd=2, ylim=c(0,0.6), xlab = "x", ylab = "f(x)", 
+     main = "Density Curves of Multiple Distributions")
+
+lines(x.c2~x, type="l", col="red", 
+      lwd=2)
+
+lines(x.c4~x, type = "l", col = "green", lwd = 2)
+
+lines(x.c10~x, type="l", col = "black", lwd = 2)
+
+legend(x="topleft", legend=c("chi(1)","chi(2)","chi(4)","chi(10)"),
+       col=c("blue","red", "green","black"), lwd=2)
+
+#b. 
+#On the same graph, plot the prob curves of Student t distributed RV w/ 1,2,4,10 df
+#Use different colors and line styles for each curve
+x.t1 <- dt(x,df=1)
+x.t2 <- dt(x,df=2)
+x.t4 <- dt(x,df=4)
+x.t10 = dt(x,df=10)
+
+
+lines(x.t1~x, type="l", lty = 2, col="purple", 
+      lwd=2)
+
+lines(x.t2~x, type = "l", lty = 2, col = "orange", lwd = 2)
+
+lines(x.t4~x, type="l", lty = 2, col = "brown", lwd = 2)
+
+lines(x.t4~x, type="l", lty = 2, col = "yellow", lwd = 2)
+
+legend(x = "topright", legend = c("t(1)","t(2)","t(4)","t(10)"), col = c("purple","orange","brown","yellow"), lwd=2)
+```
+
+
+
+
+```{r}
+#c. 
+#Without doing any calculation, which one do you expect is greater in ab value between 
+#5% VaR of standard normal vs 5% VaR of t distribution w/ df=2
+
+
+#I would say that the VaR of the t distribution w/ df=2 would be higher 
+```
+
+
+
+7.
+```{r}
+#Done on Paper, see attached picture file in submissions
+
+```
+
+
+
+Part 2 R Questions 
+
+1.
+
+```{r}
+#Suppose that X is a normal random variable with mean 0:1
+#and variance 1. Using Monte Carlo simulation to Önd the probability that X>=0.5
+set.seed(123) 
+runs <- 5000
+mu.x <- 0.1
+sigma.x <- 1
+
+X <- rnorm(runs, mu.x, sigma.x) 
+sum(X>=0.5)/runs
+```
+
+
+
+2. 
+```{r}
+#Flip a coin, you and a friend guess the outcome H or T
+#If you both guess the same, lose 3 if H, lose 1 if T
+#If guess is different from your friend, you win 2
+#You both observe the prob of observing H is 0.5
+#What is the expectation of the money you will win from this game?
+
+set.seed(321)
+X2 <- matrix(rbinom(runs*2,size = 1, prob = 0.5), ncol = 2)
+head(X2)
+
+Y <- ifelse(X2[,1]==1 & X2[,2]==1, -3,
+            ifelse(X2[,1]==0 & X2[,2]==0 , -1, 2))
+head(cbind(X,Y)) 
+
+sum(Y)/runs
+```
+
+
+
+3. 
+```{r}
+#Consider the game described in #2, Now you play the game w/ Prob(X=1)=0.36
+#Suppose your friend still has Prob(X=1)=0.5
+#What is the expectation of the money you will win from this game?
+
+X3_Person1 =  matrix(rbinom(runs*2,size = 1, prob = 0.36), ncol = 2)
+head(X3_Person1)
+
+X3_Person2 = matrix(rbinom(runs*2,size = 1, prob = 0.5), ncol = 2)
+head(X3_Person2)
+
+Y <- ifelse(X3_Person1[,1]==1 & X3_Person2[,2]==1, -3,
+            ifelse(X3_Person1[,1]==0 & X3_Person2[,2]==0 , -1, 2))
+head(cbind(X,Y)) 
+
+sum(Y)/runs
+```
+
+
+
+4. 
+```{r}
+#Consider the game in #2. Mathematically, we can show that strategy in #3 
+#Guarantees that you will win money from your friend regardless the guess of your friend 
+#If you play the games many times with your friend. That is, we can show that 
+#the expectation of the money you get from the  game is positive regardless of
+#your friends guess. Check this by simulation
+
+
+sum(Y)/runs
+  #It has a positive expected value 
+
+```
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
