@@ -1,0 +1,323 @@
+---
+title: "Econ 412 Project1 Option B (Naive Bayes algorithm)"
+author: "Xinye Cao, Haichao Yu, Tianyu Sun, Matthew Li"
+date: "4/30/2021"
+fontfamily: mathpazo
+
+output:
+  html_document:
+    toc: true
+  fig_caption: yes
+  highlight: haddock
+  number_sections: true
+  df_print: paged
+fontsize: 10.5pt
+editor_options:
+chunk_output_type: console
+---
+
+***Research Question***
+
+In this report, our group will use the data from the potential patients' health conditions to detect the varying factors that may contribute to heart disease.
+
+##############
+# I.Introduction of the data
+##############
+
+## 1. Data Preprocessing
+Remark: Before beginning our analysis, we first need to check if there are any missing values as well as fix variables names for proper use
+```{r}
+library(e1071)
+library(ggformula)
+# Load the data
+heart<-read.csv("heart.csv")
+# check the first 6 rows of the data
+head(heart)
+```
+```{r}
+# check if there is missing value
+colSums(is.na(heart))
+# fix names
+colnames(heart)[1] <- 'age'
+```
+## 2.Variable Description
+
+Remark:
+
+1.age: Age of the individual, units are in years 
+
+2.sex: 1 = male, 0 = female 
+
+3.chest pain type (4 values): 1 = typical angina,2 = atypical angina, 3 = non-angina pa, 4 = asymptomatic 
+
+4.Trestbps: Resting blood pressure (in mm Hg)
+
+5.chol: Serum cholestoral in mg/dl 
+
+6.fbs: Fasting blood sugar > 120 mg/dl
+
+7.restecg: Resting electrocardiographic results:0 = normal, 1 = having ST-T wave abnormality, 2 =showing probable or define left ventricular hypertrophy by Estes ‘criteria
+
+8.thalach:Maximum heart rate achieved
+
+9.exang:Exercise induced angina
+
+10.oldpeak: ST depression induced by exercise relative to rest
+
+11.slop:The slope of the peak exercise ST segment
+
+12.ca:Number of major vessels (0-3) colored by flourosopy
+
+13.thal: 1 = normal; 2 = fixed defect; 3 = reversable defect
+
+14.target:0 = possible heart disease,1= healthy
+
+
+## 3.Density of Heart Disease/No Heart Disease w/ Respect to Each Variable
+
+Remark: In order to have an initial grasp of the general properties of the variables, we plot each variable grouped by target. Target is a binary variable whereby the negative class is non heart disease and the positive class means there is heart disease. This step is a fundamental step to understanding what kind of data we are working with. 
+
+We see that among the distributions: 
+
+1. Age of those with heart disease is on average higher than those without heart disease. This makes sense as people tend to get health complications as they get older.  
+
+2. Sex shows that more males than females heart disease, there is a higher proportion of males with heart disease than females. 
+
+3. CP shows that those with typical angina on average have a higher chance of heart disease.
+
+4. We see that for those with and without heart disease, the resting density of resting blood pressure is about the same for both. 
+
+5. Cholesterol follows the same distribution for those with and without heart disease. 
+
+6. FBS shows the same distribution for heart and non heart disease. 
+
+7. RestECG shows that those with normal ecg results on average do not have heart disease, but it is very close. Those with an ST-T abnormality have a lower frequency of individuals with heart disease and those with left ventricular hypertrophy is 50-50 between heart and non heart disease,
+
+8. On average individuals with heart disease have lower maximum heart rate achieved, the distribution for both groups is the same, standard normal  
+
+9. Those with exercised induced angina on average have heart disease, those without exercised induced angina on average do not have heart disease. Exercise induced angina may be a leading indicator for health problems down the road.
+
+10.The distributions for ST depression is similar for both groups, heart disease having a lagging tail to the right. 
+
+11. Those without  heart disease predominantly have an ST slope of 2, those with heart disease mostly have an ST slope of 1 
+
+12. Those with heart disease have a more spread out distribution of major vessels colored by flourosopy, those without heart disease predominantly have 0 
+
+13. Majority of those without heart disease have thal = 2 and those with have thal = 3
+
+```{r}
+# get the data frame only including target = 0 data
+target0<-heart[which(heart$target==0),]
+# get the data frame only inluding target = 1 data
+target1<-heart[which(heart$target==1),]
+# plot the distribution of each variable grouped by target
+for (i in 1:13){
+  h_0<-hist(target0[,i],plot=FALSE)
+  h_1<-hist(target1[,i],plot=FALSE)
+  plot(h_0,col=alpha("orange",0.4),main = NULL)
+  plot(h_1,col=alpha("darkgreen",0.4),add=TRUE,main = NULL)
+  title(main=names(target0)[i])
+  legend("topleft",legend=c(" heart disease","healthy"),col=c(alpha("orange",0.4),alpha("darkgreen",0.4)),pt.cex=2, pch=15,box.lty=0.5, box.lwd=0.5, bg='transparent' )
+}
+
+```
+
+
+
+
+
+## 4.Continuous Variables into Categorical Variables
+
+Remark: Among the variables, we found "age, trestbps, chol, thalach, oldpeak" are continuous variables, as per Naive Bayes, we need to be bin these variables so as to transform them into categorical variables
+```{r}
+# summary for the continous variables
+summary(heart$age)
+summary(heart$trestbps)
+summary(heart$chol)
+summary(heart$thalach)
+summary(heart$oldpeak)
+# histogram for the continous variables
+library(Hmisc)
+hist.data.frame(heart[,c(1,4,5,8,10)])
+```
+
+Remark: Based on the percentiles and distribution, we decided to bin the data by fixed bin width: Age: 10 years, Trestpbs: 20, Chol: 50, Thalach : 20, Oldpeak: 1
+```{r}
+# transfer the numeric variables into categorical variables
+# age: 10 as the bin width and give it label as 1~5
+b <- c(-Inf,seq(min(heart$age),max(heart$age),by=10)[-1],Inf)
+heart$age <- factor(cut(heart$age, breaks = b,labels=1:5))
+# Trestpbs: 20 as the bin width and give it label as 1~6
+b <- c(-Inf,seq(min(heart$trestbps),max(heart$trestbps),by=20)[-1],Inf)
+heart$trestbps <-factor(cut(heart$trestbps, breaks = b,labels=1:6))
+# Chol: 70 as the bin width and give it label as 1~6
+b <- c(-Inf,seq(min(heart$chol),max(heart$chol),by=70)[-1],Inf)
+heart$chol <-factor(cut(heart$chol, breaks = b,labels=1:7))
+#Thalach : 20 as the bin width and give it label as 1~6
+b <- c(-Inf,seq(min(heart$thalach),max(heart$thalach),by=20)[-1],Inf)
+heart$thalach <-factor(cut(heart$thalach, breaks = b,labels=1:7))
+#Oldpeak: 1 as the bin width and give it label as 1~6 
+b <- c(-Inf,seq(min(heart$oldpeak),max(heart$oldpeak),by=1)[-1],Inf)
+heart$oldpeak <-factor(cut(heart$oldpeak, breaks = b,labels=1:7))
+```
+
+Remark: For the current discrete variables, we also deal them with factor function so that they won't be treated as continuous variable
+```{r}
+# Factor the discrete variables
+index<-c(2,3,6,7,9,11,12,13,14) # get the column index for the discrete variables
+heart[,index]<-lapply(heart[,index],factor) # apply factor function to the discrete variables
+str(heart) #check the result
+```
+
+
+# II. Apply the Naive Bayes algorithm
+
+## 1.Create training and validation sets.
+
+Remark: Splitting the data, 60% into training and 40% into validation is a standard step to properly training and then testing the effectiveness of our model
+```{r}
+# randomly sample 60% of the whole sample as training data and the rest 40% as validation data
+set.seed(1234) # to get the reproducible sample
+train.index <- sample(c(1:dim(heart)[1]), dim(heart)[1]*0.6)  
+train.df <- heart[train.index,]
+valid.df <- heart[-train.index,]
+```
+
+
+## 2.Run naive bayes: Conditional Probabilities which can be computed directly from the data 
+```{r}
+heart.nb <- naiveBayes(target ~ ., data = train.df)
+heart.nb # present the result for all variables in once
+```
+Remark: Bin size is crucial in determining the robustness and usefulness of the Naive Bayes predictor. Ideally, as an extension of this project, we would likely run a grid-search or other machine learning algorithm to optimize bin boundaries for our dataset. we manually set the bin boundaries so it is possible these are not the most optimal sizes. Too small of a bin size would give us more granularity and possibly better accuracy, but also would require a much larger data set to give us the same amount of observations for those smaller bins (# of bins would increase).
+
+
+## 3. Classify the target is " healthy" or "possible heart disease" (Note for team:This part is actually just show the result above seperately. It can be easy to interpret seperately so I include this part)
+```{r}
+# use prop.table() with margin = 1 to convert a count table to a proportion table, 
+# where each row sums up to 1 (use margin = 2 for column sums).
+# based on age
+prop.table(table(train.df$target, train.df$age), margin = 1)
+```
+Remark: We see that age on its own is probably not a very good predictor, and is likely biased by the frequency of the observations. We can see that the conditional probabilities are highest for age bin 3, which goes from 50 to 60, and which had the highest number of observations. We do note that the younger bins have a higher probability of being class 1 or healthy, which is expected.
+
+```{r}
+# based on sex
+prop.table(table(train.df$target, train.df$sex), margin = 1)
+```
+Remark: We see that females are more likely to be healthy and males are more likely to have heart disease, which is expected.
+
+```{r}
+# based on cp
+prop.table(table(train.df$target, train.df$cp), margin = 1)
+```
+Remark: We can see that an individual with typical angina of any type is more likely to have heart disease, while those with other types of angina or no angina at all are more likely to be healthy.
+
+```{r}
+# based on trestbps
+prop.table(table(train.df$target, train.df$trestbps), margin = 1)
+```
+Remark: Those with high resting heart rates are more likely to have heart disease, while there is not a clear separation for those with lower resting heart rates. The high resting heart rate makes sense, since a heart afflicted with disease is likely not as efficient and needs to work harder to meet the needs of the body.
+
+
+```{r}
+# based on chol
+prop.table(table(train.df$target, train.df$chol), margin = 1)
+```
+Remark: There isn't much separation along cholesterol, which is interesting since doctors seem to mention it a lot. One would think high cholesterol predicts heart disease, but we don't observe that in the data.
+
+```{r}
+# based on fbs
+prop.table(table(train.df$target, train.df$fbs), margin = 1)
+```
+Remark: There is no separation along fasting blood sugar.
+
+
+```{r}
+# based on restecg
+prop.table(table(train.df$target, train.df$restecg), margin = 1)
+```
+Remark: We don't see particularly strong separation for electrocardiogram results. A normal result seems to be more likely to have heart disease, but the difference isn't very large.
+
+
+```{r}
+# based on thalach
+prop.table(table(train.df$target, train.df$thalach), margin = 1)
+```
+Remark: High maximum heart rates are more likely to come from healthy individuals. Heart rates are elevated during exercise, so it could be a sign that those individuals exercise regularly or that a diseased heart simply cannot beat above a certain rate.
+
+```{r}
+# based on exang
+prop.table(table(train.df$target, train.df$exang), margin = 1)
+```
+Remark: Individuals without exercise induced angina are much more likely to be healthy than those with exercise induced angina.
+
+```{r}
+# based on oldpeak
+prop.table(table(train.df$target, train.df$oldpeak), margin = 1)
+```
+Remark: An ST depression in bin 1 is much more likely to come from a healthy individual, while bin 2 shows no clear separation and bin 3 tends to be from those with heart disease. The resulting bins have relatively few observations, so the probabilities are less reliable.
+ 
+```{r}
+# based on slope
+prop.table(table(train.df$target, train.df$slope), margin = 1)
+```
+Remark: Individuals with slope of 1 or 2 are more likely to be healthy, while those with 0 are slightly more likely to have heart disease. 
+
+```{r}
+# based on ca
+prop.table(table(train.df$target, train.df$ca), margin = 1)
+```
+Remark: Those with no major vessels colored by fluoroscopy are likely to be healthy, while having any vessel colored is more likely to have heart disease.  
+
+```{r}
+# based on thal
+prop.table(table(train.df$target, train.df$thal), margin = 1)
+```
+Remark: Those with fixed defects are mostly healthy, while those with reversable defects are likely to suffer from heart disease. The distribution of probabilities also suggests that most of the observations in this dataset had some kind of defect, which could be a form of bias.
+
+(Note for team: this is also the table for us to interpret, kind of replicated. But for this one, we can get the prediction for not
+recorded patient)
+```{r}
+# Predict Probabilities
+pred.prob <- predict(heart.nb, newdata = valid.df, type = "raw")
+## predict class membership
+pred.class <- predict(heart.nb, newdata = valid.df)
+# combine as a date frame
+df <- data.frame(actual = valid.df$target, predicted = pred.class, pred.prob)
+df
+```
+Remark:
+
+# III. Evaluate Performance
+```{r}
+library(caret)
+
+# Training
+pred.class <- predict(heart.nb, newdata = train.df)
+confusionMatrix(pred.class, train.df$target)
+
+# Validation
+pred.class <- predict(heart.nb, newdata = valid.df)
+confusionMatrix(pred.class, valid.df$target)
+```
+Remark: As expected, the training set accuracy came out higher than our validation/testing set. Our train accuracy was around 88% and our test accuracy was around 80%. Since our data is balanced, accuracy is a valid metric to use to evaluate our classifier.
+
+For the training dataset, the precision was 0.887 and for the testing dataset the precision was 0.838. That means our classifier made the correct prediction for all the positive predictions it made roughly 88.7% and 83.8% of the time respectively.
+
+Similarly, the recall for the training and testing dataset were 0.887 and 0.803. This means that our classifier was able to correctly classify all the positive examples 88.7% and 80.3% of the time respectively.
+
+Unsurprisingly, our testing evaluation metrics were lower than the training evaluation metrics, but they were not drastically lower to warrant large fears of overfitting.
+
+
+# IV. Conclusions
+
+Given our Naive Bayesian probabilities we found that the most useful variables that could predict possible heart disease also had similar trends in their distribution histograms whereby those that had high probabilities also had very distinctly different distributions among those individuals who had heart disease and did not have heart disease with respect to each variable. Specifically we confirmed the strength of already well known predictors, such as age and sex. We also confirmed the intuition for predictors such as exercise induced angina and resting heart rate, which clearly separate those with heart disease and without. Cholesterol was one feature that actually did not separate the classes well, even though it is often discussed alongside heart disease. The performance of the remaining features was less conclusive, including most of the readings from more specific instruments such as EKGs and cardiograms.
+
+Overall, our Naive Bayesians prediction test accuracy was about 80% accurate and our precision and recall rates were 83.8% and 80.3%. However possible errors lie in the fact that our dataset was not perfect and future work would entail obtaining a data set with more spread out age ranges as well as just generally more observations to work with. 
+
+
+# V. References 
+Heart Disease UCI, retrieved from Kaggle,
+https://www.kaggle.com/ronitf/heart-disease-uci?fbclid=IwAR2am0VQvF9Ah6yEvpWeKBjpj-mPGx5SPRrooLjaZZhWQulUbS5Pc3BoKYc, April 20, 2021.
+
